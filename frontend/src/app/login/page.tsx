@@ -2,20 +2,38 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import axios from "axios";
 
 export default function LoginPage() {
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Login submitted:", formData);
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const response = await axios.post(`${API_URL}/api/login`, formData);
+
+      console.log("Login successful:", response.data);
+      setSuccess(true);
+      setFormData({ email: "", password: "" });
+      // Optionally, store user info or token here for authentication
+    } catch (err: any) {
+      console.error("Login failed:", err.response?.data || err.message);
+      setError(err.response?.data?.message || "An unexpected error occurred.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -29,6 +47,19 @@ export default function LoginPage() {
         <h2 className="text-2xl font-bold text-green-700 text-center mb-6">
           Welcome Back 👋
         </h2>
+
+        {success && (
+          <div className="bg-green-100 text-green-700 p-3 rounded mb-4">
+            ✅ Login successful! Redirecting...
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
+            ❌ {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-600">Email ID</label>
@@ -55,10 +86,12 @@ export default function LoginPage() {
           <button
             type="submit"
             className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-all"
+            disabled={loading}
           >
-            Login
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
+
         <p className="text-sm text-gray-600 text-center mt-4">
           Don’t have an account?{" "}
           <Link href="/" className="text-green-600 font-semibold hover:underline">

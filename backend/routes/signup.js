@@ -1,59 +1,57 @@
-import express from 'express';
-import bcrypt from 'bcryptjs';
-import { supabase } from '../supabase.js'; // Adjust the path if necessary
+import express from "express";
+import bcrypt from "bcryptjs";
+import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
 
+dotenv.config();
 const router = express.Router();
 
-// POST endpoint for user signup
-router.post('/signup', async (req, res) => {
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+
+router.post("/signup", async (req, res) => {
   try {
-    // CHANGE THIS LINE: Destructure 'phonenumber' instead of 'phone'
-    const { name, email, phonenumber, password, role } = req.body;
+    const { name, email, password, phonenumber, role } = req.body;
+    
 
-    // Basic validation
-    // CHANGE THIS LINE: Use 'phonenumber' in the validation check
-    if (!name || !email || !phonenumber || !password || !role) {
-      return res.status(400).json({ error: 'All fields are required' });
+    if (!name || !email || !password || !phonenumber || !role) {
+      return res.status(400).json({ message: "All fields are required" });
     }
 
-    // Hash the password
-    const salt = await bcrypt.genSalt(10);
-    const password_hash = await bcrypt.hash(password, salt);
+    // Check if email exists
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", email)
+      .single();
 
-    // Check for an existing user with the same email or phone number
-    const { data: existingUser, error: checkError } = await supabase
-      .from('users')
-      .select('id')
-      .or(`email.eq.${email},phonenumber.eq.${phonenumber}`); // Use 'phonenumber' here
-
-    if (checkError) throw checkError;
-
-    if (existingUser && existingUser.length > 0) {
-      return res.status(409).json({ error: 'User with this email or phone number already exists' });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already registered" });
     }
 
-    // Insert the new user into the 'users' table
-    const { data: newUser, error: insertError } = await supabase
-      .from('users')
-      .insert([
-        { 
-          role, 
-          name, 
-          email, 
-          phonenumber, // Use the destructured 'phonenumber' variable
-          password_hash,
-        },
-      ])
-      .select('id, name, email, role');
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    if (insertError) throw insertError;
+    // Insert into Supabase
+    const { data, error } = await supabase.from("users").insert([
+      {
+        name,
+        email,
+        phonenumber,
+        password_hash: hashedPassword,
+        role,
+      },
 
-    // Respond with the new user data
-    res.status(201).json({ message: 'User created successfully', user: newUser[0] });
+    ]);
 
+    if (error) {
+      console.error("Supabase insert error:", error);
+      return res.status(500).json({ message: "Database insert failed", error });
+    }
+
+    res.status(201).json({ message: "User registered successfully" });
   } catch (err) {
-    console.error('Signup error:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Server error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
